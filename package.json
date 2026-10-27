@@ -1,0 +1,10 @@
+{
+  "name": "dcbot-workspace",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix RmBot start",
+    "build": "npm --prefix RmBot run build",
+    "lint": "npm --prefix RmBot run lint",
+    "install:app": "npm --prefix RmBot install"
+  }
+}
