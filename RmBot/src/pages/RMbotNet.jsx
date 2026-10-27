@@ -10,6 +10,7 @@ import {
 import TokenGate from "@/components/discord/TokenGate";
 import Sidebar from "@/components/discord/Sidebar";
 import ChannelList from "@/components/discord/ChannelList";
+import ForumPanel from "@/components/discord/ForumPanel";
 import MessageArea from "@/components/discord/MessageArea";
 import DmPanel from "@/components/discord/DmPanel";
 import { LogOut, Bot, Loader2 } from "lucide-react";
@@ -22,6 +23,7 @@ export default function RMbotNet() {
   const [selectedGuildId, setSelectedGuildId] = useState(null);
   const [channels, setChannels] = useState([]);
   const [selectedChannelId, setSelectedChannelId] = useState(null);
+  const [selectedThread, setSelectedThread] = useState(null);
   const [dms, setDms] = useState([]);
   const [selectedDmId, setSelectedDmId] = useState(null);
   const [loadingGuilds, setLoadingGuilds] = useState(false);
@@ -100,6 +102,7 @@ export default function RMbotNet() {
     setView("guild");
     setSelectedGuildId(gid);
     setSelectedChannelId(null);
+    setSelectedThread(null);
     setLoadingChannels(true);
     try {
       const ch = await discord.getChannels(gid);
@@ -111,10 +114,14 @@ export default function RMbotNet() {
     }
   };
 
-  const selectChannel = (cid) => setSelectedChannelId(cid);
+  const selectChannel = (cid) => {
+    setSelectedChannelId(cid);
+    setSelectedThread(null);
+  };
   const selectDm = (dmId) => {
     setSelectedDmId(dmId);
     setSelectedChannelId(null);
+    setSelectedThread(null);
     setView("dm");
     discord.saveSelectedDm(dmId).then(() => setDmStorageError("")).catch((e) => {
       setDmStorageError(e.discordData?.message || e.message || "Could not save the selected DM.");
@@ -124,6 +131,7 @@ export default function RMbotNet() {
   const toggleDm = async () => {
     setView("dm");
     setSelectedChannelId(null);
+    setSelectedThread(null);
     if (dms.length === 0) refreshDms();
   };
 
@@ -162,22 +170,30 @@ export default function RMbotNet() {
     setDms([]);
     setSelectedChannelId(null);
     setSelectedDmId(null);
+    setSelectedThread(null);
     setSelectedGuildId(null);
     setView("guild");
     setDmStorageError("");
   };
 
   const selectedGuild = guilds.find((g) => g.id === selectedGuildId) || null;
+  const selectedGuildChannel = channels.find((c) => c.id === selectedChannelId) || null;
   const activeChannel =
-    view === "guild" ? channels.find((c) => c.id === selectedChannelId) : dms.find((d) => d.id === selectedDmId);
+    view === "guild"
+      ? selectedThread || selectedGuildChannel
+      : dms.find((d) => d.id === selectedDmId);
 
   let activeLabel = "";
   let activeSublabel = "";
   let activeIcon = "hash";
   if (view === "guild" && activeChannel) {
     activeLabel = activeChannel.name;
-    activeSublabel = selectedGuild?.name || "";
-    activeIcon = "hash";
+    activeSublabel = selectedThread
+      ? `${selectedGuildChannel?.name || "Forum"} · ${selectedGuild?.name || ""}`
+      : selectedGuild?.name || "";
+    activeIcon = selectedGuildChannel && [15, 16].includes(selectedGuildChannel.type) && !selectedThread
+      ? "forum"
+      : "hash";
   } else if (view === "dm" && activeChannel) {
     const r = activeChannel.recipients?.[0];
     activeLabel = r?.global_name || r?.username || "Unknown";
@@ -185,7 +201,12 @@ export default function RMbotNet() {
     activeIcon = "dm";
   }
 
-  const activeChannelId = view === "guild" ? selectedChannelId : selectedDmId;
+  const activeChannelId =
+    view === "guild"
+      ? selectedGuildChannel && [15, 16].includes(selectedGuildChannel.type)
+        ? selectedThread?.id || null
+        : selectedChannelId
+      : selectedDmId;
 
   if (booting) {
     return (
@@ -256,13 +277,23 @@ export default function RMbotNet() {
         />
 
         {view === "guild" ? (
-          <ChannelList
-            guild={selectedGuild}
-            channels={channels}
-            selectedChannelId={selectedChannelId}
-            onSelect={selectChannel}
-            loading={loadingChannels}
-          />
+          selectedGuildChannel && [15, 16].includes(selectedGuildChannel.type) ? (
+            <ForumPanel
+              guildId={selectedGuildId}
+              channel={selectedGuildChannel}
+              selectedThreadId={selectedThread?.id || null}
+              onSelectThread={setSelectedThread}
+              onThreadCreated={setSelectedThread}
+            />
+          ) : (
+            <ChannelList
+              guild={selectedGuild}
+              channels={channels}
+              selectedChannelId={selectedChannelId}
+              onSelect={selectChannel}
+              loading={loadingChannels}
+            />
+          )
         ) : (
           <DmPanel
             dms={dms}

@@ -15,6 +15,10 @@ Open the local URL shown by Vite, usually `http://127.0.0.1:5173`, and enter a D
 
 The development server includes a local proxy for Discord API requests. Tokens stay in the browser session and are sent to the app's proxy, which forwards them to Discord. Your Discord bot needs access to the servers and channels you want to manage, and the relevant Discord intents enabled.
 
+Text, announcement, voice-channel chat, forum, and media channels are available when the bot has permission to view and send messages. Forum and media channels show active and archived posts, let you create a post with tags, and load replies from Discord. Message attachments render inline for images, video, and audio.
+
+Images, video, and audio can be sent in messages and new forum posts. Uploads are limited to 2 MB per file by the serverless proxy request size. Other attachment types can be viewed through their Discord download links.
+
 DM conversations and the last selected DM are synchronized to Neon Postgres. The database stores bot, channel, and recipient IDs plus recipient profile fields; message contents stay on Discord and are fetched from Discord when a conversation is opened. The bot token is never stored in the database.
 
 For local development, create an ignored `.env.local` file in this folder with `DATABASE_URL` or `POSTGRES_URL` from your Neon project. The app prefers `DATABASE_URL` when both are set:

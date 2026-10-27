@@ -1,4 +1,5 @@
 const KEY = "rmbotnet_token";
+export const MAX_MEDIA_UPLOAD_BYTES = 2 * 1024 * 1024;
 let _token = null;
 
 class DiscordClientError extends Error {
@@ -65,12 +66,32 @@ async function request(method, path, opts = {}) {
   if (!token) {
     throw new DiscordClientError("No bot token set", 401)
   }
+  let file
+  if (opts.file) {
+    if (opts.file.size > MAX_MEDIA_UPLOAD_BYTES) {
+      throw new DiscordClientError("Media uploads must be 2 MB or smaller.", 413)
+    }
+    if (!["image/", "video/", "audio/"].some((type) => opts.file.type.startsWith(type))) {
+      throw new DiscordClientError("Choose an image, video, or audio file.", 400)
+    }
+    const bytes = new Uint8Array(await opts.file.arrayBuffer())
+    let binary = ""
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
+    }
+    file = {
+      name: opts.file.name,
+      type: opts.file.type,
+      data: btoa(binary),
+    }
+  }
   const { result } = await proxyRequest("/api/discordApi", {
       token,
       method,
       path,
       body: opts.body,
       query: opts.query,
+      file,
   })
   if (!result || result.ok === false) {
     const raw = result && result.data && (result.data.message || result.data);
@@ -107,7 +128,23 @@ export const discord = {
   getChannels: (gid) => request("GET", `guilds/${gid}/channels`),
   getMessages: (cid, limit = 50, before) =>
     request("GET", `channels/${cid}/messages`, { query: { limit, ...(before ? { before } : {}) } }),
-  sendMessage: (cid, content) => request("POST", `channels/${cid}/messages`, { body: { content } }),
+  sendMessage: (cid, content, file) =>
+    request("POST", `channels/${cid}/messages`, { body: { content: content || undefined }, file }),
+  getActiveThreads: (guildId) => request("GET", `guilds/${guildId}/threads/active`),
+  getArchivedThreads: (channelId, before) =>
+    request("GET", `channels/${channelId}/threads/archived/public`, {
+      query: { limit: 100, ...(before ? { before } : {}) },
+    }),
+  createForumThread: (channelId, name, content, appliedTags, file) =>
+    request("POST", `channels/${channelId}/threads`, {
+      body: {
+        name,
+        auto_archive_duration: 1440,
+        applied_tags: appliedTags,
+        message: { content: content || undefined },
+      },
+      file,
+    }),
   addReaction: (cid, mid, emoji) =>
     request("PUT", `channels/${cid}/messages/${mid}/reactions/${encodeURIComponent(emoji)}/@me`),
   removeReaction: (cid, mid, emoji) =>

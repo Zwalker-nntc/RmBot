@@ -1,15 +1,17 @@
 import React from "react";
 import { guildIconUrl, defaultAvatarColor } from "@/lib/discordClient";
-import { Hash, Volume2, Megaphone, Mic, Lock, Loader2 } from "lucide-react";
+import { Hash, Volume2, Megaphone, Mic, Lock, Loader2, MessageSquare, Image } from "lucide-react";
 
 function channelIcon(type) {
-  if (type === 2 || type === 13) return <Volume2 className="w-4 h-4" />;
-  if (type === 5) return <Megaphone className="w-4 h-4" />;
+  if (type === 2) return <Volume2 className="w-4 h-4" />;
   if (type === 13) return <Mic className="w-4 h-4" />;
+  if (type === 5) return <Megaphone className="w-4 h-4" />;
+  if (type === 15) return <MessageSquare className="w-4 h-4" />;
+  if (type === 16) return <Image className="w-4 h-4" />;
   return <Hash className="w-4 h-4" />;
 }
 
-const CLICKABLE = new Set([0, 5, 15]);
+const CLICKABLE = new Set([0, 2, 5, 13, 15, 16]);
 
 export default function ChannelList({ guild, channels, selectedChannelId, onSelect, loading }) {
   const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);

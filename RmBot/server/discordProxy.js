@@ -1,6 +1,7 @@
 const DISCORD_API = "https://discord.com/api/v10"
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"])
 const MAX_BODY_BYTES = 4 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 
 function describeError(error) {
   const messages = []
@@ -43,13 +44,62 @@ function discordUrl(path, query) {
   return url
 }
 
-async function discordRequest(token, method, path, { body, query } = {}) {
+function createMultipartBody(body, file) {
+  const allowedMedia = ["image/", "video/", "audio/"]
+  const maximumEncodedSize = Math.ceil(MAX_UPLOAD_BYTES / 3) * 4
+  if (
+    !file ||
+    typeof file.name !== "string" ||
+    !file.name.trim() ||
+    file.name.length > 255 ||
+    typeof file.type !== "string" ||
+    !allowedMedia.some((type) => file.type.startsWith(type)) ||
+    typeof file.data !== "string" ||
+    file.data.length === 0 ||
+    file.data.length > maximumEncodedSize ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(file.data)
+  ) {
+    const error = new Error("Invalid media upload. Choose an image, video, or audio file up to 2 MB.")
+    error.status = 400
+    throw error
+  }
+
+  const bytes = Buffer.from(file.data, "base64")
+  if (bytes.length > MAX_UPLOAD_BYTES || bytes.toString("base64") !== file.data) {
+    const error = new Error("Media uploads must be 2 MB or smaller.")
+    error.status = 413
+    throw error
+  }
+
+  const form = new FormData()
+  const message = body.message || body
+  form.append(
+    "payload_json",
+    JSON.stringify({
+      ...body,
+      ...(body.message
+        ? {
+            message: {
+              ...body.message,
+              attachments: [...(body.message.attachments || []), { id: 0, filename: file.name }],
+            },
+          }
+        : { attachments: [...(message.attachments || []), { id: 0, filename: file.name }] }),
+    }),
+  )
+  form.append("files[0]", new Blob([bytes], { type: file.type }), file.name)
+  return form
+}
+
+async function discordRequest(token, method, path, { body, query, file } = {}) {
   const options = {
     method,
     headers: { Authorization: `Bot ${token}` },
     signal: AbortSignal.timeout(20000),
   }
-  if (body !== undefined && body !== null && ["POST", "PUT", "PATCH"].includes(method)) {
+  if (file) {
+    options.body = createMultipartBody(body || {}, file)
+  } else if (body !== undefined && body !== null && ["POST", "PUT", "PATCH"].includes(method)) {
     options.headers["Content-Type"] = "application/json"
     options.body = JSON.stringify(body)
   }
@@ -111,7 +161,7 @@ async function listDmTargets(token) {
 }
 
 export async function handleDiscordProxy(endpoint, payload = {}) {
-  const { token, method = "GET", path, body, query } = payload
+  const { token, method = "GET", path, body, query, file } = payload
   if (typeof token !== "string" || !token.trim()) {
     return { httpStatus: 200, body: { ok: false, status: 400, data: { message: "Missing bot token" } } }
   }
@@ -133,7 +183,7 @@ export async function handleDiscordProxy(endpoint, payload = {}) {
     }
     return {
       httpStatus: 200,
-      body: await discordRequest(token, normalizedMethod, path, { body, query }),
+      body: await discordRequest(token, normalizedMethod, path, { body, query, file }),
     }
   } catch (error) {
     return {

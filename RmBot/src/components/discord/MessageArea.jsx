@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { discord } from "@/lib/discordClient";
+import { discord, MAX_MEDIA_UPLOAD_BYTES } from "@/lib/discordClient";
 import MessageItem from "@/components/discord/MessageItem";
-import { Send, Loader2, AlertCircle, ArrowUp, Hash, AtSign } from "lucide-react";
+import { Send, Loader2, AlertCircle, ArrowUp, Hash, AtSign, Paperclip, X } from "lucide-react";
 
 export default function MessageArea({ channelId, label, sublabel, icon, botUserId }) {
   const [messages, setMessages] = useState([]);
@@ -9,9 +9,11 @@ export default function MessageArea({ channelId, label, sublabel, icon, botUserI
   const [sending, setSending] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [input, setInput] = useState("");
+  const [file, setFile] = useState(null);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const refresh = async () => {
     if (!channelId) return;
@@ -25,6 +27,7 @@ export default function MessageArea({ channelId, label, sublabel, icon, botUserI
   };
 
   useEffect(() => {
+    setFile(null);
     if (!channelId) {
       setMessages([]);
       return;
@@ -74,12 +77,13 @@ export default function MessageArea({ channelId, label, sublabel, icon, botUserI
   };
 
   const send = async () => {
-    if (!input.trim() || !channelId) return;
+    if ((!input.trim() && !file) || !channelId) return;
     setSending(true);
     try {
-      const msg = await discord.sendMessage(channelId, input.trim());
+      const msg = await discord.sendMessage(channelId, input.trim(), file);
       setMessages((prev) => [...prev, msg]);
       setInput("");
+      setFile(null);
       setError("");
     } catch (e) {
       setError(e.discordData?.message || e.message);
@@ -92,7 +96,11 @@ export default function MessageArea({ channelId, label, sublabel, icon, botUserI
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-zinc-900 text-zinc-500 gap-3">
         {icon === "dm" ? <AtSign className="w-10 h-10" /> : <Hash className="w-10 h-10" />}
-        <p className="text-sm">Select a {icon === "dm" ? "conversation" : "channel"} to start messaging.</p>
+        <p className="text-sm">
+          {icon === "forum"
+            ? "Select a post or create a new forum post."
+            : `Select a ${icon === "dm" ? "conversation" : "channel"} to start messaging.`}
+        </p>
       </div>
     );
   }
@@ -141,6 +149,19 @@ export default function MessageArea({ channelId, label, sublabel, icon, botUserI
         )}
       </div>
 
+      {file && (
+        <div className="mx-4 flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-300">
+          <span className="truncate">{file.name}</span>
+          <button
+            type="button"
+            onClick={() => setFile(null)}
+            title="Remove attachment"
+            className="ml-3 rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       <div className="p-4 shrink-0">
         <div className="flex items-end gap-2 bg-zinc-950 border border-zinc-700 rounded-2xl px-4 py-2.5 focus-within:border-indigo-500 transition-colors">
           <textarea
@@ -156,9 +177,38 @@ export default function MessageArea({ channelId, label, sublabel, icon, botUserI
             placeholder={`Message ${label}`}
             className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none max-h-32"
           />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*,audio/*"
+            className="hidden"
+            onChange={(event) => {
+              const selected = event.target.files?.[0] || null;
+              event.target.value = "";
+              if (!selected) return;
+              if (!["image/", "video/", "audio/"].some((type) => selected.type.startsWith(type))) {
+                setError("Choose an image, video, or audio file.");
+                return;
+              }
+              if (selected.size > MAX_MEDIA_UPLOAD_BYTES) {
+                setError("Media uploads must be 2 MB or smaller.");
+                return;
+              }
+              setFile(selected);
+              setError("");
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach image, video, or audio (2 MB max)"
+            className="p-2 rounded-xl text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
           <button
             onClick={send}
-            disabled={sending || !input.trim()}
+            disabled={sending || (!input.trim() && !file)}
             className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:from-indigo-400 hover:to-violet-500 transition-colors"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

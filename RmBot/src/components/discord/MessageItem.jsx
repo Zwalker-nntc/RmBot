@@ -8,6 +8,18 @@ function reactionKey(emoji) {
   return emoji.id ? `${emoji.name}:${emoji.id}` : emoji.name;
 }
 
+function attachmentKind(attachment) {
+  const contentType = attachment.content_type || ""
+  if (contentType.startsWith("image/")) return "image"
+  if (contentType.startsWith("video/")) return "video"
+  if (contentType.startsWith("audio/")) return "audio"
+  const extension = attachment.filename?.split(".").pop()?.toLowerCase()
+  if (["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp"].includes(extension)) return "image"
+  if (["mp4", "webm", "mov", "m4v"].includes(extension)) return "video"
+  if (["mp3", "wav", "ogg", "m4a", "flac", "aac"].includes(extension)) return "audio"
+  return "file"
+}
+
 export default function MessageItem({ message, botUserId, onUpdated }) {
   const [picker, setPicker] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -126,17 +138,49 @@ export default function MessageItem({ message, botUserId, onUpdated }) {
 
           {message.attachments?.length > 0 && (
             <div className="mt-1.5 flex flex-col gap-1.5">
-              {message.attachments.map((a, i) => (
-                <a
-                  key={i}
-                  href={a.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-indigo-400 hover:underline truncate"
-                >
-                  📎 {a.filename}
-                </a>
-              ))}
+              {message.attachments.map((a, i) => {
+                const kind = attachmentKind(a)
+                if (kind === "image") {
+                  return (
+                    <a key={a.id || i} href={a.url} target="_blank" rel="noreferrer" className="block w-fit max-w-full">
+                      <img
+                        src={a.url}
+                        alt={a.filename || "Image attachment"}
+                        loading="lazy"
+                        className="max-h-[480px] max-w-full rounded-lg object-contain"
+                      />
+                      {a.filename && <span className="mt-1 block text-xs text-zinc-500">{a.filename}</span>}
+                    </a>
+                  )
+                }
+                if (kind === "video") {
+                  return (
+                    <video
+                      key={a.id || i}
+                      src={a.url}
+                      controls
+                      preload="metadata"
+                      className="max-h-[480px] max-w-full rounded-lg"
+                    >
+                      <a href={a.url}>Download {a.filename || "video"}</a>
+                    </video>
+                  )
+                }
+                if (kind === "audio") {
+                  return <audio key={a.id || i} src={a.url} controls preload="metadata" className="max-w-full" />
+                }
+                return (
+                  <a
+                    key={a.id || i}
+                    href={a.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-indigo-400 hover:underline truncate"
+                  >
+                    📎 {a.filename || "Download attachment"}
+                  </a>
+                )
+              })}
             </div>
           )}
 
