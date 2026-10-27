@@ -147,7 +147,7 @@ export async function handleDiscordProxy(endpoint, payload = {}) {
   }
 }
 
-async function readJsonBody(req) {
+export async function readJsonBody(req) {
   const chunks = []
   let size = 0
   for await (const chunk of req) {

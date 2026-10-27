@@ -27,6 +27,7 @@ export default function RMbotNet() {
   const [loadingGuilds, setLoadingGuilds] = useState(false);
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [refreshingDms, setRefreshingDms] = useState(false);
+  const [dmStorageError, setDmStorageError] = useState("");
 
   useEffect(() => {
     const t = getToken();
@@ -39,6 +40,7 @@ export default function RMbotNet() {
       .getMe()
       .then((me) => {
         setBotUser(me);
+        restoreDmState();
         loadGuilds();
       })
       .catch(() => {
@@ -46,6 +48,35 @@ export default function RMbotNet() {
         setBooting(false);
       });
   }, []);
+
+  const restoreDmState = async () => {
+    try {
+      const savedState = await discord.getSavedDmState();
+      setDms(savedState.conversations);
+      if (savedState.selectedDmId) {
+        setSelectedDmId(savedState.selectedDmId);
+        setSelectedChannelId(null);
+        setView("dm");
+      }
+      setDmStorageError("");
+    } catch (e) {
+      setDmStorageError(e.discordData?.message || e.message || "Could not load saved DM information.");
+    }
+
+    try {
+      const liveDms = await discord.getDms();
+      setDms((savedDms) => {
+        const merged = new Map(savedDms.map((dm) => [dm.id, dm]));
+        for (const dm of liveDms) merged.set(dm.id, dm);
+        return Array.from(merged.values());
+      });
+      const savedState = await discord.syncDmConversations(liveDms);
+      setDms(savedState.conversations);
+      setDmStorageError("");
+    } catch (e) {
+      setDmStorageError(e.discordData?.message || e.message || "Could not synchronize DM information.");
+    }
+  };
 
   const loadGuilds = async () => {
     setLoadingGuilds(true);
@@ -61,6 +92,7 @@ export default function RMbotNet() {
 
   const handleConnected = (me) => {
     setBotUser(me);
+    restoreDmState();
     loadGuilds();
   };
 
@@ -84,6 +116,9 @@ export default function RMbotNet() {
     setSelectedDmId(dmId);
     setSelectedChannelId(null);
     setView("dm");
+    discord.saveSelectedDm(dmId).then(() => setDmStorageError("")).catch((e) => {
+      setDmStorageError(e.discordData?.message || e.message || "Could not save the selected DM.");
+    });
   };
 
   const toggleDm = async () => {
@@ -95,8 +130,13 @@ export default function RMbotNet() {
   const refreshDms = async () => {
     setRefreshingDms(true);
     try {
-      setDms(await discord.getDms());
+      const liveDms = await discord.getDms();
+      setDms(liveDms);
+      const savedState = await discord.syncDmConversations(liveDms);
+      setDms(savedState.conversations);
+      setDmStorageError("");
     } catch (e) {
+      setDmStorageError(e.discordData?.message || e.message || "Could not refresh DM information.");
     } finally {
       setRefreshingDms(false);
     }
@@ -107,6 +147,11 @@ export default function RMbotNet() {
     setSelectedDmId(dm.id);
     setSelectedChannelId(null);
     setView("dm");
+    discord.syncDmConversations([dm]).then(() => discord.saveSelectedDm(dm.id)).then(() => {
+      setDmStorageError("");
+    }).catch((e) => {
+      setDmStorageError(e.discordData?.message || e.message || "Could not save the new DM.");
+    });
   };
 
   const handleLogout = () => {
@@ -119,6 +164,7 @@ export default function RMbotNet() {
     setSelectedDmId(null);
     setSelectedGuildId(null);
     setView("guild");
+    setDmStorageError("");
   };
 
   const selectedGuild = guilds.find((g) => g.id === selectedGuildId) || null;
@@ -192,6 +238,12 @@ export default function RMbotNet() {
           </button>
         </div>
       </header>
+
+      {dmStorageError && (
+        <div className="px-4 py-2 text-xs text-amber-200 bg-amber-950/40 border-b border-amber-900/60">
+          DM sync: {dmStorageError}
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         <Sidebar

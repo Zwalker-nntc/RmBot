@@ -83,6 +83,23 @@ async function request(method, path, opts = {}) {
   return result.data;
 }
 
+async function dmStorageRequest(action, options = {}) {
+  const { response, result } = await proxyRequest("/api/dmConversations", {
+    token: getToken(),
+    action,
+    ...options,
+  })
+  if (!result || result.ok === false) {
+    const raw = result?.data?.message || result?.data || "Failed to save DM information"
+    throw new DiscordClientError(
+      typeof raw === "string" ? raw : "Failed to save DM information",
+      result?.status || response.status,
+      result?.data,
+    )
+  }
+  return result.data
+}
+
 export const discord = {
   request,
   getMe: () => request("GET", "users/@me"),
@@ -101,6 +118,20 @@ export const discord = {
   triggerTyping: (cid) => request("POST", `channels/${cid}/typing`),
   getDms: () => request("GET", "users/@me/channels"),
   createDm: (recipientId) => request("POST", "users/@me/channels", { body: { recipient_id: recipientId } }),
+  getSavedDmState: () => dmStorageRequest("load"),
+  syncDmConversations: (conversations) =>
+    dmStorageRequest("sync", {
+      conversations: conversations.map((conversation) => ({
+        id: conversation.id,
+        recipients: (conversation.recipients || []).map((recipient) => ({
+          id: recipient.id,
+          username: recipient.username,
+          global_name: recipient.global_name || null,
+          avatar: recipient.avatar || null,
+        })),
+      })),
+    }),
+  saveSelectedDm: (selectedDmId) => dmStorageRequest("select", { selectedDmId }),
   async getDmTargets() {
     const { response, result } = await proxyRequest("/api/discordListDmTargets", { token: getToken() })
     if (!result || result.ok === false) {
