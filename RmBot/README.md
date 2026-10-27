@@ -17,7 +17,7 @@ The development server includes a local proxy for Discord API requests. Tokens s
 
 DM conversations and the last selected DM are synchronized to Neon Postgres. The database stores bot, channel, and recipient IDs plus recipient profile fields; message contents stay on Discord and are fetched from Discord when a conversation is opened. The bot token is never stored in the database.
 
-For local development, create an ignored `.env.local` file in this folder with the `DATABASE_URL` from your Neon project:
+For local development, create an ignored `.env.local` file in this folder with `DATABASE_URL` or `POSTGRES_URL` from your Neon project. The app prefers `DATABASE_URL` when both are set:
 
 ```env
 DATABASE_URL=your-neon-connection-string
@@ -29,6 +29,6 @@ If local `npm start` reports a TLS certificate verification error when contactin
 
 ## Deploy to Vercel
 
-Import the repository into Vercel and set **Root Directory** to `RmBot`. Vercel will build the Vite frontend (`npm run build`, output folder `dist`) and deploy the API handlers in `api/`. Link a Neon Postgres database to the Vercel project and make sure its `DATABASE_URL` environment variable is available to the deployment. No other environment variables are required.
+Import the repository into Vercel and set **Root Directory** to `RmBot`. Vercel will build the Vite frontend (`npm run build`, output folder `dist`) and deploy the API handlers in `api/`. Link a Neon Postgres database to the Vercel project and make sure either `DATABASE_URL` or `POSTGRES_URL` is available to the deployment. If both are set, `DATABASE_URL` takes precedence. No other environment variables are required.
 
 Run `npm run lint` and `npm run typecheck` for checks.

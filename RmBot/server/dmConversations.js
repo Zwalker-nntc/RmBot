@@ -152,12 +152,13 @@ export async function handleDmConversations(payload = {}) {
     if (!["load", "sync", "select"].includes(action)) {
       return response(400, 400, "Invalid DM storage action.")
     }
-    if (!process.env.DATABASE_URL) {
+    const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL
+    if (!databaseUrl) {
       return response(503, 503, "Database is not configured. Link Neon to this project and set DATABASE_URL.")
     }
 
     const bot = await verifyBot(token)
-    const sql = neon(process.env.DATABASE_URL)
+    const sql = neon(databaseUrl)
     await ensureSchema(sql)
 
     if (action === "sync") {

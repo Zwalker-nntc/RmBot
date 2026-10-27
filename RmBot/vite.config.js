@@ -5,9 +5,14 @@ import { discordProxyMiddleware } from "./server/discordProxy.js"
 import { dmConversationsMiddleware } from "./server/dmConversationsMiddleware.js"
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "DATABASE_URL")
-  if (!process.env.DATABASE_URL && env.DATABASE_URL) {
-    process.env.DATABASE_URL = env.DATABASE_URL
+  const env = loadEnv(mode, process.cwd(), ["DATABASE_URL", "POSTGRES_URL"])
+  const databaseUrl =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    env.DATABASE_URL ||
+    env.POSTGRES_URL
+  if (!process.env.DATABASE_URL && databaseUrl) {
+    process.env.DATABASE_URL = databaseUrl
   }
 
   return {
